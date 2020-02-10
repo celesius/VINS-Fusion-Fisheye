@@ -55,6 +55,9 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
     if (img_count ++ % 3 == 0) {
        return;
     }
+
+    static int img_track_count = 0;
+    static double sum_time = 0;
 //     if(begin_time_count<=0)
     inputImageCnt++;
     map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
@@ -68,7 +71,11 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
     //     sum_t_feature += featureTrackerTime.toc();
     //     printf("featureTracker time: %f\n", sum_t_feature/(float)inputImageCnt);
     // }
-    printf("featureTracker time: %f\n", featureTrackerTime.toc() );
+    double dt = featureTrackerTime.toc();
+    sum_time += dt;
+    img_track_count ++;
+
+    printf("featureTracker time: AVG %f NOW %f\n", sum_time/img_track_count, dt );
     if(MULTIPLE_THREAD)  
     {     
         if(inputImageCnt % 2 == 0)
@@ -167,6 +174,9 @@ bool Estimator::IMUAvailable(double t)
 
 void Estimator::processMeasurements()
 {
+
+    static int mea_track_count = 0;
+    static double mea_sum_time = 0;
     while (1)
     {
         //printf("process measurments\n");
@@ -229,7 +239,11 @@ void Estimator::processMeasurements()
             pubPointCloud(*this, header);
             pubKeyframe(*this);
             pubTF(*this, header);
-            printf("process measurement time: %f\n", t_process.toc());
+
+            double dt = t_process.toc();
+            mea_sum_time += dt;
+            mea_track_count ++;
+            printf("process measurement time: AVG %f NOW %f\n", mea_sum_time/mea_track_count, dt );
         }
 
         if (! MULTIPLE_THREAD)
@@ -1078,8 +1092,8 @@ void Estimator::optimization()
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
     //cout << summary.BriefReport() << endl;
-    ROS_DEBUG("Iterations : %d", static_cast<int>(summary.iterations.size()));
-    //printf("solver costs: %f \n", t_solver.toc());
+    printf("Iterations : %d", static_cast<int>(summary.iterations.size()));
+    printf(" solver costs: %f \n", t_solver.toc());
 
     double2vector();
     //printf("frame_count: %d \n", frame_count);
@@ -1179,11 +1193,11 @@ void Estimator::optimization()
 
         TicToc t_pre_margin;
         marginalization_info->preMarginalize();
-        ROS_DEBUG("pre marginalization %f ms", t_pre_margin.toc());
+        ROS_INFO("pre marginalization %f ms", t_pre_margin.toc());
         
         TicToc t_margin;
         marginalization_info->marginalize();
-        ROS_DEBUG("marginalization %f ms", t_margin.toc());
+        ROS_INFO("marginalization %f ms", t_margin.toc());
 
         std::unordered_map<long, double *> addr_shift;
         for (int i = 1; i <= WINDOW_SIZE; i++)
@@ -1232,14 +1246,14 @@ void Estimator::optimization()
             }
 
             TicToc t_pre_margin;
-            ROS_DEBUG("begin marginalization");
+            // ROS_INFO("begin marginalization");
             marginalization_info->preMarginalize();
-            ROS_DEBUG("end pre marginalization, %f ms", t_pre_margin.toc());
+            ROS_INFO("end pre marginalization, %f ms", t_pre_margin.toc());
 
             TicToc t_margin;
-            ROS_DEBUG("begin marginalization");
+            // ROS_INFO("begin marginalization");
             marginalization_info->marginalize();
-            ROS_DEBUG("end marginalization, %f ms", t_margin.toc());
+            ROS_INFO("end marginalization, %f ms", t_margin.toc());
             
             std::unordered_map<long, double *> addr_shift;
             for (int i = 0; i <= WINDOW_SIZE; i++)
