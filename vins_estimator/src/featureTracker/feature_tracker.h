@@ -52,125 +52,37 @@ class Estimator;
 class FisheyeUndist;
 map<int, cv::Point2f> pts_map(vector<int> ids, vector<cv::Point2f> cur_pts);
 
+double distance(cv::Point2f pt1, cv::Point2f pt2);
+
 
 template<CvMat>
-class IFeatureTracker {
-public:
+class IFeatureFrameTracker {
+
+
+protected:
+    int row, col;
+
     IFeatureTracker() {}
     Estimator * estimator = nullptr;
     virtual void setup_feature_frame(FeatureFrame & ff, 
         vector<int> ids, vector<cv::Point2f> cur_pts, vector<cv::Point3f> cur_un_pts, vector<cv::Point3f> cur_pts_vel, int camera_id);
     FeatureFrame setup_feature_frame();
-
+    virtual void readIntrinsicParameter(const vector<string> &calib_file) = 0;
     virtual FeatureFrame trackImage(double _cur_time, const CvMat &_img, const CvMat &_img1) = 0;
     virtual FeatureFrame trackImage_fisheye(double _cur_time, const std::vector<cv::Mat> & fisheye_imgs_up, const std::vector<cv::Mat> & fisheye_imgs_down) = 0;
-}
-
-template<CvMat>
-class FisheyeFeatureTracker: public IFeatureTracker {
-
-};
-
-class FisheyeFeatureTrackerCuda: public IFeatureTracker<cv::cuda::GpuMat> {
-
-public:
-    FeatureFrame trackImage_fisheye(double _cur_time, 
-        const std::vector<cv::cuda::GpuMat> & fisheye_imgs_up, 
-        const std::vector<cv::cuda::GpuMat> & fisheye_imgs_down, bool is_blank_init = false);
-
-    vector<cv::Point2f> opticalflow_track(cv::cuda::GpuMat & cur_img, 
-                        cv::cuda::GpuMat & prev_img, vector<cv::Point2f> & prev_pts, 
-                        vector<int> & ids, vector<int> & track_cnt,
-                        bool is_lr_track, vector<cv::Point2f> prediction_points = vector<cv::Point2f>());
-
-};
-
-class FisheyeFeatureTrackerOMP:: public IFeatureTracker<cv::Mat> {
-public:
-    FeatureFrame trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat());
-
-    FeatureFrame trackImage_fisheye(double _cur_time, const std::vector<cv::Mat> & fisheye_imgs_up, const std::vector<cv::Mat> & fisheye_imgs_down);
-    
-    vector<cv::Point2f> opticalflow_track(vector<cv::Mat> * cur_pyr, 
-                        vector<cv::Mat> * prev_pyr, vector<cv::Point2f> & prev_pts, 
-                        vector<int> & ids, vector<int> & track_cnt, vector<cv::Point2f> prediction_points = vector<cv::Point2f>()) const;
-
-    vector<cv::Point2f> opticalflow_track(cv::Mat & cur_img, vector<cv::Mat> * cur_pyr, 
-                        cv::Mat & prev_img, vector<cv::Mat> * prev_pyr, vector<cv::Point2f> & prev_pts, 
-                        vector<int> & ids, vector<int> & track_cnt, vector<cv::Point2f> prediction_points = vector<cv::Point2f>()) const;
-}
-
-class PinholeStereoTrackerCPU:: public IFeatureTracker<cv::Mat> {
-
-}
-
-
-class PinholeStereoTrackerCuda:: public IFeatureTracker<cv::Mat> {
-
-}
-
-class FeatureTracker
-{
-public:
-    FeatureTracker();
-    void setMask();
-    void setMaskFisheye();
-    cv::Mat setMaskFisheye(cv::Size shape, vector<cv::Point2f> & cur_pts, vector<int> & track_cnt, vector<int> & ids);
-    void setMaskFisheye(cv::cuda::GpuMat & mask, cv::Size shape, vector<cv::Point2f> & cur_pts, 
-        vector<int> & track_cnt, vector<int> & ids);
-    void addPoints();
-    void addPointsFisheye();
-    void readIntrinsicParameter(const vector<string> &calib_file);
-    void showUndistortion(const string &name);
-    void rejectWithF();
-    void undistortedPoints();
-    vector<cv::Point2f> undistortedPts(vector<cv::Point2f> &pts, camodocal::CameraPtr cam);
-    vector<cv::Point3f> undistortedPtsTop(vector<cv::Point2f> &pts, FisheyeUndist & fisheye);
-    vector<cv::Point3f> undistortedPtsSide(vector<cv::Point2f> &pts, FisheyeUndist & fisheye, bool is_downward);
 
     vector<cv::Point2f> ptsVelocity(vector<int> &ids, vector<cv::Point2f> &pts, 
-                                    map<int, cv::Point2f> &cur_id_pts, map<int, cv::Point2f> &prev_id_pts);
+        map<int, cv::Point2f> &cur_id_pts, map<int, cv::Point2f> &prev_id_pts);
 
     vector<cv::Point3f> ptsVelocity3D(vector<int> &ids, vector<cv::Point3f> &pts, 
-                                    map<int, cv::Point3f> &cur_id_pts, map<int, cv::Point3f> &prev_id_pts);
+        map<int, cv::Point3f> &cur_id_pts, map<int, cv::Point3f> &prev_id_pts);
+    virtual void setPrediction(map<int, Eigen::Vector3d> &predictPts) {};
+    virtual void removeOutliers(set<int> &removePtsIds) {};
 
-    void showTwoImage(const cv::Mat &img1, const cv::Mat &img2, 
-                      vector<cv::Point2f> pts1, vector<cv::Point2f> pts2);
-    void drawTrack(const cv::Mat &imLeft, const cv::Mat &imRight, 
-                    vector<int> &curLeftIds,
-                    vector<cv::Point2f> &curLeftPts, 
-                    vector<cv::Point2f> &curRightPts,
-                    map<int, cv::Point2f> &prevLeftPtsMap);
-    
-    
-#ifdef USE_CUDA
-    void drawTrackFisheye(const cv::Mat & img_up, const cv::Mat & img_down, 
-                            cv::cuda::GpuMat imUpTop,
-                            cv::cuda::GpuMat imDownTop,
-                            cv::cuda::GpuMat imUpSide, 
-                            cv::cuda::GpuMat imDownSide);
-#endif
-        
-    void drawTrackFisheye(const cv::Mat & img_up, const cv::Mat & img_down, 
-                            cv::Mat imUpTop,
-                            cv::Mat imDownTop,
-                            cv::Mat imUpSide, 
-                            cv::Mat imDownSide);
 
-    void drawTrackImage(cv::Mat & img, vector<cv::Point2f> pts, vector<int> ids, map<int, cv::Point2f> prev_pts);
+    void detectPoints(const CvMat & img, vector<cv::Point2f> & n_pts, 
+        vector<cv::Point2f> & cur_pts, int require_pts, const CvMat & mask = CvMat());
 
-    void setPrediction(map<int, Eigen::Vector3d> &predictPts);
-    void removeOutliers(set<int> &removePtsIds);
-    cv::Mat getTrackImage();
-    bool inBorder(const cv::Point2f &pt);
-    bool inBorder(const cv::Point2f &pt, cv::Size shape) const;
-
-    static double distance(cv::Point2f pt1, cv::Point2f pt2);
-
-    void detectPoints(const cv::cuda::GpuMat & img, vector<cv::Point2f> & n_pts, 
-        vector<cv::Point2f> & cur_pts, int require_pts);
-
-    void detectPoints(const cv::Mat & img, const cv::Mat & mask, vector<cv::Point2f> & n_pts, vector<cv::Point2f> & cur_pts, int require_pts);
 
     void setFeatureStatus(int feature_id, int status) {
         this->pts_status[feature_id] = status;
@@ -179,68 +91,71 @@ public:
         }
     }
 
-    int row, col;
-    cv::Mat imTrack;
+}
+
+
+
+struct Feature {
+
+}
+
+template<CvMat>
+class PinholeFeatureTracker {
+//This class is for track points on a pinhole camera
+protected:
+    int base_id = 0;
+    CvMat prev_img;
     cv::Mat mask;
-
-    cv::Mat mask_up_top, mask_down_top, mask_up_side;
-    cv::Size top_size;
-    cv::Size side_size;
-    
-    cv::Mat fisheye_mask;
-    cv::Mat prev_img, cur_img;
-
-    cv::cuda::GpuMat prev_gpu_img, cur_gpu_img;
-    cv::cuda::GpuMat prev_up_top_img, prev_down_top_img, prev_up_side_img;
-
-    cv::Mat prev_up_top_img_cpu, prev_down_top_img_cpu, prev_up_side_img_cpu;
-    std::vector<cv::Mat> * prev_up_top_pyr = nullptr, * prev_down_top_pyr = nullptr, * prev_up_side_pyr = nullptr;
-
+    std::vector<cv::Mat> * prev_pyr = nullptr;
     vector<cv::Point2f> n_pts;
-    vector<cv::Point2f> n_pts_up_top, n_pts_down_top, n_pts_up_side;
-    int sum_n;
-
     vector<cv::Point2f> predict_pts;
-    vector<cv::Point2f> predict_pts_debug;
-    vector<cv::Point2f> prev_pts, cur_pts, cur_right_pts;
-    vector<cv::Point2f> prev_un_pts, cur_un_pts, cur_un_right_pts;
-    vector<cv::Point2f> pts_velocity, right_pts_velocity;
-    vector<int> ids, ids_right;
-    vector<int> pts_img_id, pts_img_id_right;
+    vector<cv::Point2f> cur_pts;
+    vector<cv::Point2f> cur_un_pts;
+    vector<cv::Point2f> prev_un_pts;
+    vector<cv::Point2f> pts_velocity;
+    vector<cv::Point3f> cur_velocity;
+    vector<int> ids;
     map<int, int> pts_status;
-
-
-    vector<cv::Point2f> predict_up_side, predict_pts_left_top, predict_pts_right_top, predict_pts_down_side;
-    vector<cv::Point2f> prev_up_top_pts, cur_up_top_pts, prev_up_side_pts, cur_up_side_pts, prev_down_top_pts, prev_down_side_pts;
-    
-    vector<cv::Point3f> prev_up_top_un_pts,  prev_up_side_un_pts, prev_down_top_un_pts, prev_down_side_un_pts;
-    vector<cv::Point2f> cur_down_top_pts, cur_down_side_pts;
-
-
-    vector<cv::Point3f> up_top_vel, up_side_vel, down_top_vel, down_side_vel;
-    vector<cv::Point3f> cur_up_top_un_pts, cur_up_side_un_pts, cur_down_top_un_pts, cur_down_side_un_pts;
-
-    vector<int> ids_up_top, ids_up_side, ids_down_top, ids_down_side;
-    map<int, cv::Point2f> up_top_prevLeftPtsMap;
-    map<int, cv::Point2f> down_top_prevLeftPtsMap;
-    map<int, cv::Point2f> up_side_prevLeftPtsMap;
-    map<int, cv::Point2f> down_side_prevLeftPtsMap;
+    map<int, int> prevPtsMap;
+    map<int, int> cur_un_pts_map;
     set<int> removed_pts;
-
-
-    // vector<cv::Point2f> prev_un_pts, cur_un_pts, cur_un_right_pts;
-    // vector<cv::Point2f> pts_velocity, right_pts_velocity;
-    
-
     vector<int> track_cnt;
 
-    vector<int> track_up_top_cnt;
-    vector<int> track_down_top_cnt;
-    vector<int> track_up_side_cnt;
-    vector<int> track_down_side_cnt;
-    map<int, cv::Point2f> cur_un_pts_map, prev_un_pts_map;
-    map<int, cv::Point2f> cur_un_right_pts_map, prev_un_right_pts_map;
+public:
+    PinholeFeatureTracker() {}
+    virtual void track_image(CvMat img);
+    virtual void track_current_to_right(CvMat img);
+    virtual void setMask() {}
 
+    bool inBorder(const cv::Point2f &pt);
+    bool inBorder(const cv::Point2f &pt, cv::Size shape) const;
+
+
+}
+
+
+class StereoFeatureTracker : public IFeatureFrameTracker<cv::Mat> {
+    void addPoints();
+    void undistortedPoints();
+    vector<cv::Point2f> undistortedPts(vector<cv::Point2f> &pts, camodocal::CameraPtr cam);
+    void drawTrack(const cv::Mat &imLeft, const cv::Mat &imRight, 
+        vector<int> &curLeftIds,
+        vector<cv::Point2f> &curLeftPts, 
+        vector<cv::Point2f> &curRightPts,
+        map<int, cv::Point2f> &prevLeftPtsMap);
+    void drawTrackImage(cv::Mat & img, vector<cv::Point2f> pts, vector<int> ids, map<int, cv::Point2f> prev_pts);
+    void setPrediction(map<int, Eigen::Vector3d> &predictPts);
+    void removeOutliers(set<int> &removePtsIds);
+    virtual void setPrediction(map<int, Eigen::Vector3d> &predictPts) override;
+    virtual void removeOutliers(set<int> &removePtsIds) override;
+
+}
+
+
+class FeatureTracker
+{
+public:
+    
     map<int, cv::Point3f> cur_up_top_un_pts_map, prev_up_top_un_pts_map;
     map<int, cv::Point3f> cur_down_top_un_pts_map, prev_down_top_un_pts_map;
     map<int, cv::Point3f> cur_up_side_un_pts_map, prev_up_side_un_pts_map;
@@ -248,43 +163,8 @@ public:
 
     map<int, cv::Point2f> prevLeftPtsMap;
     vector<camodocal::CameraPtr> m_camera;
-    vector<FisheyeUndist> fisheys_undists;
     double cur_time;
     double prev_time;
     bool stereo_cam;
     int n_id;
-
-    cv::cuda::GpuMat up_side_img_fix;
-    cv::cuda::GpuMat down_side_img_fix;
-    cv::cuda::GpuMat up_top_img_fix;
-    cv::cuda::GpuMat down_top_img_fix;
-
-    cv::cuda::GpuMat mask_up_top_fix, mask_down_top_fix, mask_up_side_fix;
-
-    vx_image vx_up_top_image;
-    vx_image vx_down_top_image;
-    vx_image vx_up_side_image;
-    vx_image vx_down_side_image;
-
-    vx_image vx_up_top_mask;
-    vx_image vx_down_top_mask;
-    vx_image vx_up_side_mask;
-
-    nvx::FeatureTracker* tracker_up_top = nullptr;
-    nvx::FeatureTracker* tracker_down_top = nullptr;
-    nvx::FeatureTracker* tracker_up_side = nullptr;
-    nvx::FeatureTracker* tracker_down_side = nullptr;
-
-    void init_vworks_tracker(cv::cuda::GpuMat & up_top_img, cv::cuda::GpuMat & down_top_img, cv::cuda::GpuMat & up_side_img, cv::cuda::GpuMat & down_side_img);
-    FeatureFrame trackImage_fisheye_vworks(double _cur_time, const std::vector<cv::cuda::GpuMat> & fisheye_imgs_up, const std::vector<cv::cuda::GpuMat> & fisheye_imgs_down);
-
-    void process_vworks_tracking(nvx::FeatureTracker* _tracker, vector<int> & _ids, vector<cv::Point2f> & prev_pts, vector<cv::Point2f> & cur_pts, 
-        vector<int> & _track, vector<cv::Point2f> & n_pts, map<int, int> &_id_by_index, bool debug_output=false);
-    bool first_frame = true;
-
-    map<int, int> up_top_id_by_index;
-    map<int, int> down_top_id_by_index;
-    map<int, int> up_side_id_by_index;
-#endif
-
 };

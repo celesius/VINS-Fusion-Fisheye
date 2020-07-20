@@ -2,7 +2,7 @@
 #include "feature_tracker.h"
 #include "../estimator/estimator.h"
 #include "fisheye_undist.hpp"
-
+#include "feature_tracker_fisheye.hpp"
 
 Eigen::Quaterniond t1(Eigen::AngleAxisd(-M_PI / 2, Eigen::Vector3d(1, 0, 0)));
 Eigen::Quaterniond t2 = t1 * Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d(0, 1, 0));
